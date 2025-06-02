@@ -223,15 +223,18 @@ export class BotGateway {
 
   private summarise = (content: string) =>
     Effect.gen(this, function* () {
-      const nanoModel = AiOpenai.OpenAiLanguageModel.model('gpt-4.1-nano' as any, { max_tokens: 16, temperature: 0.7 })
+      const nanoModel = AiOpenai.OpenAiLanguageModel.model('gpt-4.1-nano' as any, { max_tokens: 16, temperature: 0.5 })
 
       const createTitleWithModel = (text: string) =>
         Effect.gen(function* () {
-          const prompt = `Title this Discord message in ≤ 6 words:\n"${text.slice(0, 500).replace(/["`]/g, "\\\\'")}"`
+          // Avoid slicing in the middle of a word
+          const safeText = text.length > 500 ? text.slice(0, 497) + '...' : text
+          const prompt = `Summarize the following Discord message in a clear, concise title (max 6 words):\n${safeText}`
 
           const response = yield* Ai.AiLanguageModel.generateText({ prompt })
 
-          return response.text.replace(/["'\\n]/g, '').trim()
+          // Only trim whitespace and newlines
+          return response.text.replace(/\n/g, '').trim()
         })
 
       const nanoModelProvider = yield* nanoModel
