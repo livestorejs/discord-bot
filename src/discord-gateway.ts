@@ -35,7 +35,7 @@ export class DiscordGateway {
    */
   stop(): void {
     console.log('🔌 Disconnecting from Discord Gateway...')
-    
+
     if (this.heartbeatInterval !== undefined) {
       clearInterval(this.heartbeatInterval)
       this.heartbeatInterval = undefined
@@ -119,7 +119,7 @@ export class DiscordGateway {
       this.ws.on('close', (code) => {
         console.warn(`🔌 Discord Gateway connection closed (code: ${code})`)
         this.cleanup()
-        
+
         if (code === 4004) {
           console.error('❌ Authentication failed - invalid Discord token')
           return
@@ -132,9 +132,11 @@ export class DiscordGateway {
       this.ws.on('error', (error) => {
         console.error('❌ Discord Gateway WebSocket error:', error.message)
       })
-
     } catch (error) {
-      console.error('❌ Failed to connect to Discord Gateway:', error instanceof Error ? error.message : 'Unknown error')
+      console.error(
+        '❌ Failed to connect to Discord Gateway:',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
       this.isConnecting = false
       await this.delay(10000)
       return this.connect()
@@ -148,16 +150,16 @@ export class DiscordGateway {
     if (this.ws === undefined || this.ws.readyState !== WebSocket.OPEN) return
 
     console.log('🔐 Identifying with Discord...')
-    
+
     const rawToken = getRawDiscordToken(this.config.discordToken)
     const identifyPayload = {
       op: Discord.GatewayOpcodes.Identify,
       d: {
         token: rawToken,
         intents: Discord.GatewayIntentBits.GuildMessages | Discord.GatewayIntentBits.MessageContent,
-        properties: { 
-          os: 'linux', 
-          browser: 'discord-bot', 
+        properties: {
+          os: 'linux',
+          browser: 'discord-bot',
           device: 'discord-bot',
         } satisfies Discord.GatewayIdentifyProperties,
       },
@@ -210,15 +212,22 @@ export class DiscordGateway {
         // Heartbeat acknowledged - no need to log this frequently
         break
 
+      case Discord.GatewayOpcodes.Reconnect: {
+        console.log('🔄 TMP Discord requested reconnect, closing connection to reconnect...')
+        // Discord is asking us to reconnect - this is normal
+        this.ws?.close(1000, 'Reconnect requested by Discord')
+        break
+      }
+
       case Discord.GatewayOpcodes.InvalidSession:
         console.error('❌ Invalid session received from Discord')
         this.ws?.close(4000, 'Invalid session received')
         break
 
       default:
-        // Unhandled opcode - only log if it's something we might care about
+        // Only log opcodes we might care about, but don't log common ones like Heartbeat
         if (payload.op !== Discord.GatewayOpcodes.Heartbeat) {
-          console.log(`🔍 Received unhandled opcode: ${payload.op}`)
+          console.log(`🔍 TMP Received unhandled opcode: ${payload.op}`)
         }
         break
     }

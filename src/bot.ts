@@ -11,6 +11,8 @@ export class DiscordBot {
   private readonly messageHandler: MessageHandler
   private readonly gateway: DiscordGateway
   private isRunning = false
+  private connectionLostTime: number | undefined = undefined
+  private readonly maxReconnectionTime = 5 * 60 * 1000 // 5 minutes
 
   constructor(private readonly config: BotConfig) {
     this.aiService = createAiService(this.config)
@@ -28,10 +30,10 @@ export class DiscordBot {
 
     this.isRunning = true
     console.log('🔧 Initializing bot services...')
-    
+
     // Set up graceful shutdown
     this.setupGracefulShutdown()
-    
+
     // Start the Discord gateway connection
     await this.gateway.start()
   }
@@ -52,9 +54,35 @@ export class DiscordBot {
 
   /**
    * Check if the bot is running
+   * Allow temporary disconnections during reconnection attempts
    */
   get running(): boolean {
-    return this.isRunning && this.gateway.isConnected
+    if (!this.isRunning) {
+      return false
+    }
+
+    // If we're connected, clear any disconnection tracking
+    if (this.gateway.isConnected) {
+      this.connectionLostTime = undefined
+      return true
+    }
+
+    // If we just disconnected, start tracking the time
+    if (this.connectionLostTime === undefined) {
+      this.connectionLostTime = Date.now()
+      console.log('⚠️ TMP Gateway disconnected, allowing time for reconnection...')
+      return true // Still consider it running for now
+    }
+
+    // If we've been disconnected for too long, consider it not running
+    const disconnectedFor = Date.now() - this.connectionLostTime
+    if (disconnectedFor > this.maxReconnectionTime) {
+      console.error(`❌ Gateway has been disconnected for ${Math.round(disconnectedFor / 1000)}s, considering bot not running`)
+      return false
+    }
+
+    // Still within acceptable reconnection time
+    return true
   }
 
   /**

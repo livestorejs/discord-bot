@@ -31,17 +31,26 @@ export class MessageHandler {
 
     try {
       console.log(`📝 Processing message from ${message.author.username} in channel ${message.channel_id}`)
-      
+
       // Generate thread title using AI
       const title = await this.aiService.summarizeMessageAsync(message.content)
       console.log(`🤖 Generated title: "${title}"`)
-      
+
       // Create thread
       await this.createThread(message.channel_id, message.id, title)
       console.log(`✅ Thread created successfully for message ${message.id}`)
-      
     } catch (error) {
-      console.error(`❌ Failed to process message ${message.id}:`, error instanceof Error ? error.message : 'Unknown error')
+      // Check if this is a Discord API error we can parse
+      if (error instanceof Error && error.message.includes('Discord API error')) {
+        // This will include our gracefully handled cases and actual API errors
+        console.error(`❌ Failed to process message ${message.id}: ${error.message}`)
+      } else {
+        // This covers other types of errors (AI service, network, etc.)
+        console.error(
+          `❌ Failed to process message ${message.id}:`,
+          error instanceof Error ? error.message : 'Unknown error',
+        )
+      }
     }
   }
 
@@ -65,7 +74,46 @@ export class MessageHandler {
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Discord API error (${response.status}): ${errorText}`)
+
+      try {
+        const errorData = JSON.parse(errorText) as { code?: number; message?: string }
+
+        // Handle specific Discord API error codes
+        switch (errorData.code) {
+          case 50068: // Invalid message type
+            console.log(
+              `⚠️ TMP Skipping message ${messageId}: Cannot create thread from this message type (${errorData.message})`,
+            )
+            return
+
+          case 160004: // A thread has already been created for this message
+            console.log(`⚠️ TMP Skipping message ${messageId}: Thread already exists for this message`)
+            return
+
+          case 50013: // Missing Permissions
+            console.log(`⚠️ TMP Skipping message ${messageId}: Bot lacks permissions to create threads in this channel`)
+            return
+
+          case 160006: // Maximum number of active threads reached
+            console.log(`⚠️ TMP Skipping message ${messageId}: Channel has reached maximum active threads limit`)
+            return
+
+          case 50024: // Cannot execute action on this channel type
+            console.log(`⚠️ TMP Skipping message ${messageId}: Cannot create threads in this channel type`)
+            return
+
+          case 40067: // A tag is required to create a forum post in this channel
+            console.log(`⚠️ TMP Skipping message ${messageId}: Tags required for forum posts (${errorData.message})`)
+            return
+
+          default:
+            // For other errors, throw to maintain existing behavior
+            throw new Error(`Discord API error (${response.status}): ${errorText}`)
+        }
+      } catch (parseError) {
+        // If we can't parse the error response, throw the original error
+        throw new Error(`Discord API error (${response.status}): ${errorText}`)
+      }
     }
   }
 }
