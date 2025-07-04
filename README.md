@@ -1,146 +1,74 @@
 # Discord ThreadBot
 
-A Discord bot that automatically creates threaded conversations from messages in selected channels, using OpenAI to generate concise titles.
+Automatically creates threads from Discord messages with AI-generated titles.
 
----
+## How it Works
 
-## 🏗 How it works
+1. Bot monitors configured Discord channels
+2. For each new message, sends content to OpenAI
+3. Creates a thread with the AI-generated title
+4. Maintains persistent connection with auto-reconnect
 
-```
-Discord Gateway  ──➔  Node.js/Bun Bot Process  ──➔  OpenAI API
-      ▲                                       │
-      │                                       └──➔  creates thread in same channel
-      │ (WebSocket)                              with the title from the LLM
-      │
-   Reconnects automatically on disconnect
-```
+## Setup
 
-1. Bot connects to Discord Gateway via WebSocket
-2. On each **MESSAGE_CREATE** event:
-   1. Skip bot messages and non-target channels
-   2. Send message content to OpenAI → get concise title
-   3. Create thread using Discord API
-3. Maintains persistent connection with automatic reconnection
-
----
-
-## ⚙️ Setup & Deploy
-
-### Prerequisites
-
-- **Bun** (recommended) or Node.js 18+
-- Discord bot token
-- OpenAI API key
-
-### Installation
-
-```bash
-# Clone and install dependencies
-pnpm install
-
-
-# Edit .envrc.local with your tokens
-export DISCORD_TOKEN="your_discord_bot_token_here"
-export OPENAI_KEY="sk-your_openai_api_key_here"
-```
-
-### Discord Bot Setup
+### 1. Create Discord Bot
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create **New Application** → **Bot**
+2. Create New Application → Bot
 3. Enable **MESSAGE CONTENT** intent
-4. Copy the bot token
-5. Generate OAuth URL with scopes `bot` and permissions:
+4. Copy bot token
+5. Generate invite URL with permissions:
    - Read Messages / View Channels
-   - Send Messages (and in Threads)
+   - Send Messages
    - Create Public Threads
    - Read Message History
-6. Invite the bot to your server
 
-### Running
+### 2. Configure Environment
 
 ```bash
-# Development (with auto-restart)
-pnpm dev
+# Install dependencies
+pnpm install
 
-# Production
-pnpm start
-
-# Build TypeScript
-pnpm build
+# Create .envrc.local
+export DISCORD_TOKEN="your_bot_token"
+export OPENAI_KEY="sk-your_key"
 ```
 
----
+### 3. Configure Channels
 
-## 🔧 Configuration
-
-Update channel IDs in `src/config.ts`:
-
+Edit `src/config.ts`:
 ```typescript
 export const CHANNEL_IDS = [
   '1154415662874247191', // #general
-  '1344991859805786142', // #contrib
-  // Add your channel IDs here
-] as const
+  // Add your channel IDs
+]
 ```
 
----
+## Usage
 
-## 🔐 Security & Limits
+**Start development:**
+```bash
+process-compose -U up -D
+```
 
-- OpenAI key should be **project-restricted** to `/v1/chat/completions`
-- Set a monthly budget on your OpenAI project (e.g. $5)
-- Bot only responds to messages in configured channels
+**Start production:**
+```bash
+process-compose -f process-compose.prod.yaml -U up -D
+```
 
----
+**Commands:**
+```bash
+process-compose process list        # Check status
+process-compose process restart bot # Restart
+process-compose down                # Stop all
+process-compose attach              # Interactive UI (humans)
+tail -f logs/bot-dev.log            # View logs (real-time)
+```
 
-## 🛠 Development
+**Note**: Logs are written in real-time to both the terminal UI and log files using a `tee` workaround due to [process-compose issue #361](https://github.com/F1bonacc1/process-compose/issues/361).
 
-- Uses **Bun** for fast TypeScript execution
-- Modern TypeScript with Effect for functional programming
-- Modular architecture with separate services for:
-  - Discord Gateway connection
-  - Message handling
-  - AI summarization
-- Automatic reconnection and error handling
-- Graceful shutdown on SIGINT/SIGTERM
+## Security
 
----
-
-## 🧪 Local Testing
-
-1. **Setup Test Environment**
-   ```bash
-   # Create test Discord server
-   # Add bot with required permissions
-   # Update channel IDs in src/config.ts
-   ```
-
-2. **Run in Development Mode**
-   ```bash
-   pnpm dev
-   ```
-
-3. **Test the Bot**
-   - Send messages in configured channels
-   - Bot should create threads with AI-generated titles
-   - Check console logs for detailed operation status
-
----
-
-## 🗺 Roadmap / Ideas
-
-- Slash command `/threadbot add #channel` for dynamic channel management
-- Auto-archive duration based on channel type
-- Detect code blocks and tag threads with language emoji
-- Support for multiple Discord servers
-
-## Historic notes
-
-- The first version of this bot was targeting Cloudflare Workers but [Discord is blocking CF IPs](https://github.com/discord/discord-api-docs/issues/7146).
-
----
-
-## 📄 License
-
-MIT – see `LICENSE`.
+- Restrict OpenAI key to `/v1/chat/completions` endpoint only
+- Set monthly budget limit (e.g., $5)
+- Bot only responds in configured channels

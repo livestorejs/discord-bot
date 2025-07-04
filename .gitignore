@@ -5,7 +5,12 @@ node_modules
 .envrc.local
 *.log
 
+# Process compose socket file
+.process-compose.sock
+
 # Nix
 .direnv/
 result
 result-*
+
+tmp

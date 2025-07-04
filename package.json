@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",
-    "start": "bun src/main.ts 2>&1 | tee logs/$(date +%Y-%m-%d).log",
+    "start": "bun src/main.ts",
     "build": "tsc",
     "test": "vitest",
     "test:run": "vitest run",

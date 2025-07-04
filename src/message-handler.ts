@@ -106,7 +106,7 @@ export class MessageHandler {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bot ${getBotDiscordToken(this.config.discordToken)}`,
+        Authorization: getBotDiscordToken(this.config.discordToken),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

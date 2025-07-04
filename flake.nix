@@ -25,7 +25,23 @@
             nodejs_24
             corepack
             pkgsUnstable.bun
+            process-compose
           ];
+          
+          shellHook = ''
+            echo "Start development:"
+            echo "  process-compose -U up -D"
+            echo ""
+            echo "Start production:"
+            echo "  process-compose -f process-compose.prod.yaml -U up -D"
+            echo ""
+            echo "Commands:"
+            echo "  process-compose process list        - Check status"
+            echo "  process-compose process restart bot - Restart"
+            echo "  process-compose down                - Stop all"
+            echo "  process-compose attach              - Interactive UI (humans)"
+            echo "  tail -f logs/bot-dev.log            - View logs"
+          '';
         };
       });
 }
