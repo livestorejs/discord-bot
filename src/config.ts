@@ -5,6 +5,10 @@ export interface BotConfig {
   readonly discordToken: string
   readonly openaiKey: string
   readonly channelIds: readonly string[]
+  readonly messageFiltering: {
+    readonly enabled: boolean
+    readonly minMessageLength: number
+  }
 }
 
 /**
@@ -17,6 +21,14 @@ export const CHANNEL_IDS = [
   '1296109918968877076', // #random
   '1373597443798859776', // #internal/test-channel
 ] as const
+
+/**
+ * Default message filtering configuration
+ */
+export const DEFAULT_MESSAGE_FILTERING = {
+  enabled: true,
+  minMessageLength: 10,
+} as const
 
 /**
  * Load configuration from environment variables
@@ -37,6 +49,7 @@ export const loadConfig = (): BotConfig => {
     discordToken: discordToken.trim(),
     openaiKey,
     channelIds: CHANNEL_IDS,
+    messageFiltering: DEFAULT_MESSAGE_FILTERING,
   } satisfies BotConfig
 }
 

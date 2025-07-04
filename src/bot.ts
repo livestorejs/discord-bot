@@ -77,7 +77,9 @@ export class DiscordBot {
     // If we've been disconnected for too long, consider it not running
     const disconnectedFor = Date.now() - this.connectionLostTime
     if (disconnectedFor > this.maxReconnectionTime) {
-      console.error(`❌ Gateway has been disconnected for ${Math.round(disconnectedFor / 1000)}s, considering bot not running`)
+      console.error(
+        `❌ Gateway has been disconnected for ${Math.round(disconnectedFor / 1000)}s, considering bot not running`,
+      )
       return false
     }
 

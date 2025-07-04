@@ -29,6 +29,12 @@ export class MessageHandler {
       return
     }
 
+    // Skip low-value messages that don't warrant thread creation
+    if (this.config.messageFiltering.enabled && this.shouldSkipMessage(message.content)) {
+      console.log(`⚠️ Skipping low-value message from ${message.author.username}: "${message.content.slice(0, 50)}..."`)
+      return
+    }
+
     try {
       console.log(`📝 Processing message from ${message.author.username} in channel ${message.channel_id}`)
 
@@ -55,65 +61,63 @@ export class MessageHandler {
   }
 
   /**
+   * Check if a message should be skipped based on simple filtering criteria
+   */
+  private shouldSkipMessage(content: string): boolean {
+    const text = content.trim().toLowerCase()
+
+    // Skip empty or very short messages
+    if (text.length < this.config.messageFiltering.minMessageLength) {
+      return true
+    }
+
+    // Skip simple greetings and reactions
+    const simplePatterns = [
+      /^(hi|hello|hey|wave to say hi)!?$/,
+      /^(thanks?|thx|ty)!?$/,
+      /^(welcome|good morning|good evening)!?$/,
+      /^(lol|lmao|nice|cool|ok|yes|no|\+1)$/,
+      /^[\/!][a-z]+/, // Commands like /help, !ping
+      /^https?:\/\/\S+$/, // URL-only messages
+      /^\d+$/, // Number-only messages
+    ]
+
+    for (const pattern of simplePatterns) {
+      if (pattern.test(text)) {
+        return true
+      }
+    }
+
+    // Skip emoji-heavy messages (1+ emojis, short text)
+    const emojiCount = (content.match(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu) ?? []).length
+    if (emojiCount >= 1 && content.length < 30) {
+      return true
+    }
+
+    return false
+  }
+
+  /**
    * Create a thread for the given message
    */
-  private async createThread(channelId: string, messageId: string, title: string): Promise<void> {
-    const botToken = getBotDiscordToken(this.config.discordToken)
+  private async createThread(channelId: string, messageId: string, threadName: string): Promise<void> {
+    const url = `https://discord.com/api/v10/channels/${channelId}/messages/${messageId}/threads`
 
-    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages/${messageId}/threads`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: botToken,
+        Authorization: `Bot ${getBotDiscordToken(this.config.discordToken)}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        name: title.slice(0, 90), // Discord thread name limit
-        auto_archive_duration: 1440, // 24 hours
-      } as Discord.RESTPostAPIChannelThreadsJSONBody),
+        name: threadName,
+        type: 11, // PUBLIC_THREAD
+      }),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-
-      try {
-        const errorData = JSON.parse(errorText) as { code?: number; message?: string }
-
-        // Handle specific Discord API error codes
-        switch (errorData.code) {
-          case 50068: // Invalid message type
-            console.log(
-              `⚠️ TMP Skipping message ${messageId}: Cannot create thread from this message type (${errorData.message})`,
-            )
-            return
-
-          case 160004: // A thread has already been created for this message
-            console.log(`⚠️ TMP Skipping message ${messageId}: Thread already exists for this message`)
-            return
-
-          case 50013: // Missing Permissions
-            console.log(`⚠️ TMP Skipping message ${messageId}: Bot lacks permissions to create threads in this channel`)
-            return
-
-          case 160006: // Maximum number of active threads reached
-            console.log(`⚠️ TMP Skipping message ${messageId}: Channel has reached maximum active threads limit`)
-            return
-
-          case 50024: // Cannot execute action on this channel type
-            console.log(`⚠️ TMP Skipping message ${messageId}: Cannot create threads in this channel type`)
-            return
-
-          case 40067: // A tag is required to create a forum post in this channel
-            console.log(`⚠️ TMP Skipping message ${messageId}: Tags required for forum posts (${errorData.message})`)
-            return
-
-          default:
-            // For other errors, throw to maintain existing behavior
-            throw new Error(`Discord API error (${response.status}): ${errorText}`)
-        }
-      } catch (parseError) {
-        // If we can't parse the error response, throw the original error
-        throw new Error(`Discord API error (${response.status}): ${errorText}`)
-      }
+      throw new Error(`Discord API error (${response.status}): ${errorText}`)
     }
   }
 }
