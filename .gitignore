@@ -4,3 +4,8 @@ node_modules
 .wrangler
 .envrc.local
 *.log
+
+# Nix
+.direnv/
+result
+result-*

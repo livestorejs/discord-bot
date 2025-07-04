@@ -77,7 +77,7 @@ export class MessageHandler {
       /^(thanks?|thx|ty)!?$/,
       /^(welcome|good morning|good evening)!?$/,
       /^(lol|lmao|nice|cool|ok|yes|no|\+1)$/,
-      /^[\/!][a-z]+/, // Commands like /help, !ping
+      /^[/!][a-z]+/, // Commands like /help, !ping
       /^https?:\/\/\S+$/, // URL-only messages
       /^\d+$/, // Number-only messages
     ]

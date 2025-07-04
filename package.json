@@ -2,7 +2,7 @@
   "name": "discord-bot-livestore",
   "type": "module",
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
+    "@biomejs/biome": "^2.0.6",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.13",
     "vitest": "^3.2.4",
@@ -17,7 +17,8 @@
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
     "lint": "biome check .",
-    "lint:fix": "biome check --write ."
+    "lint:fix": "biome check . --write",
+    "format": "biome format . --write"
   },
   "dependencies": {
     "discord-api-types": "^0.38.8",
