@@ -51,6 +51,10 @@ export const CHANNEL_IDS = [
 process-compose -U up -D
 ```
 
+No need to re-start process-compose after changes. `bun --watch` will automatically restart the bot.
+
+**Expected state**: Process-compose should always be running in daemon mode. If commands fail with socket errors, restart it.
+
 **Start production:**
 ```bash
 process-compose -f process-compose.prod.yaml -U up -D

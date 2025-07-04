@@ -3,6 +3,7 @@ import * as AiOpenai from '@effect/ai-openai'
 import { layer as FetchHttpClientLayer } from '@effect/platform/FetchHttpClient'
 import { Config, Effect, Layer, Redacted } from 'effect'
 import type { BotConfig } from './config.js'
+import { logger } from './logger.js'
 
 /**
  * AI service for generating message summaries
@@ -39,7 +40,7 @@ export class AiService {
         }).pipe(Layer.provide(FetchHttpClientLayer)),
       ),
       Effect.catchAllCause((error) => {
-        console.warn('⚠️ AI summarization failed, using fallback title:', error)
+        logger.warn('⚠️ AI summarization failed, using fallback title:', error)
         return Effect.succeed('Discussion')
       }),
     )
@@ -48,7 +49,7 @@ export class AiService {
    * Run the summarization and return a Promise
    */
   readonly summarizeMessageAsync = (content: string): Promise<string> => {
-    console.log('🤖 Generating AI summary for message...')
+    logger.log('🤖 Generating AI summary for message...')
     return Effect.runPromise(this.summarizeMessage(content))
   }
 }

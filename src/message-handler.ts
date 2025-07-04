@@ -2,6 +2,7 @@ import type * as Discord from 'discord-api-types/v10'
 import type { AiService } from './ai-service.js'
 import type { BotConfig } from './config.js'
 import { getBotDiscordToken } from './config.js'
+import { logger } from './logger.js'
 
 /**
  * Message handler for processing Discord messages
@@ -31,28 +32,28 @@ export class MessageHandler {
 
     // Skip low-value messages that don't warrant thread creation
     if (this.config.messageFiltering.enabled && this.shouldSkipMessage(message.content)) {
-      console.log(`⚠️ Skipping low-value message from ${message.author.username}: "${message.content.slice(0, 50)}..."`)
+      logger.log(`⚠️ Skipping low-value message from ${message.author.username}: "${message.content.slice(0, 50)}..."`)
       return
     }
 
     try {
-      console.log(`📝 Processing message from ${message.author.username} in channel ${message.channel_id}`)
+      logger.log(`📝 Processing message from ${message.author.username} in channel ${message.channel_id}`)
 
       // Generate thread title using AI
       const title = await this.aiService.summarizeMessageAsync(message.content)
-      console.log(`🤖 Generated title: "${title}"`)
+      logger.log(`🤖 Generated title: "${title}"`)
 
       // Create thread
       await this.createThread(message.channel_id, message.id, title)
-      console.log(`✅ Thread created successfully for message ${message.id}`)
+      logger.log(`✅ Thread created successfully for message ${message.id}`)
     } catch (error) {
       // Check if this is a Discord API error we can parse
       if (error instanceof Error && error.message.includes('Discord API error')) {
         // This will include our gracefully handled cases and actual API errors
-        console.error(`❌ Failed to process message ${message.id}: ${error.message}`)
+        logger.error(`❌ Failed to process message ${message.id}: ${error.message}`)
       } else {
         // This covers other types of errors (AI service, network, etc.)
-        console.error(
+        logger.error(
           `❌ Failed to process message ${message.id}:`,
           error instanceof Error ? error.message : 'Unknown error',
         )

@@ -2,6 +2,7 @@ import { type AiService, createAiService } from './ai-service.js'
 import type { BotConfig } from './config.js'
 import { DiscordGateway } from './discord-gateway.js'
 import { MessageHandler } from './message-handler.js'
+import { logger } from './logger.js'
 
 /**
  * Main Discord bot class
@@ -29,7 +30,7 @@ export class DiscordBot {
     }
 
     this.isRunning = true
-    console.log('🔧 Initializing bot services...')
+    logger.log('🔧 Initializing bot services...')
 
     // Set up graceful shutdown
     this.setupGracefulShutdown()
@@ -46,10 +47,10 @@ export class DiscordBot {
       return
     }
 
-    console.log('🛑 Stopping bot...')
+    logger.log('🛑 Stopping bot...')
     this.isRunning = false
     this.gateway.stop()
-    console.log('✅ Bot stopped successfully')
+    logger.log('✅ Bot stopped successfully')
   }
 
   /**
@@ -70,14 +71,14 @@ export class DiscordBot {
     // If we just disconnected, start tracking the time
     if (this.connectionLostTime === undefined) {
       this.connectionLostTime = Date.now()
-      console.log('⚠️ TMP Gateway disconnected, allowing time for reconnection...')
+      logger.log('⚠️ TMP Gateway disconnected, allowing time for reconnection...')
       return true // Still consider it running for now
     }
 
     // If we've been disconnected for too long, consider it not running
     const disconnectedFor = Date.now() - this.connectionLostTime
     if (disconnectedFor > this.maxReconnectionTime) {
-      console.error(
+      logger.error(
         `❌ Gateway has been disconnected for ${Math.round(disconnectedFor / 1000)}s, considering bot not running`,
       )
       return false
@@ -92,7 +93,7 @@ export class DiscordBot {
    */
   private setupGracefulShutdown(): void {
     const shutdown = async (signal: string) => {
-      console.log(`🔔 Received ${signal}, shutting down gracefully...`)
+      logger.log(`🔔 Received ${signal}, shutting down gracefully...`)
       await this.stop()
       process.exit(0)
     }
