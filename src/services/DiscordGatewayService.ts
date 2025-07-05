@@ -1,6 +1,7 @@
 import * as Discord from 'discord-api-types/v10'
 import { Effect, Queue, Ref, Schedule, Schema, Stream } from 'effect'
 import { ConfigService } from './ConfigService.js'
+import { updateGatewayStatus } from './HealthService.js'
 import * as SimpleConnectionManager from './SimpleConnectionManager.js'
 import { type WebSocketConnection, WebSocketService, WebSocketState, WebSocketTextMessage } from './WebSocketService.js'
 
@@ -186,6 +187,8 @@ export class DiscordGatewayService extends Effect.Service<DiscordGatewayService>
                   const readyData = dispatchPayload.d as Discord.GatewayReadyDispatchData
                   yield* Ref.update(stateRef, (state) => ({ ...state, sessionId: readyData.session_id }))
                   yield* Effect.log('🎯 Discord Gateway connected and ready')
+                  // Update health status - we're connected!
+                  yield* updateGatewayStatus(true)
                 } else if (dispatchPayload.t === 'MESSAGE_CREATE') {
                   const message = dispatchPayload.d
                   yield* Queue.offer(eventQueue, new DiscordMessageEvent({ message }))
@@ -198,6 +201,8 @@ export class DiscordGatewayService extends Effect.Service<DiscordGatewayService>
 
               case Discord.GatewayOpcodes.HeartbeatAck: {
                 yield* Ref.update(stateRef, (state) => ({ ...state, heartbeatAcknowledged: true }))
+                // Update health status with successful heartbeat
+                yield* updateGatewayStatus(true)
                 break
               }
 
@@ -221,6 +226,8 @@ export class DiscordGatewayService extends Effect.Service<DiscordGatewayService>
           Effect.gen(function* () {
             if (WebSocketState.$is('Disconnected')(state)) {
               yield* Effect.log(`🔌 Discord Gateway disconnected: ${state.code} - ${state.reason}`)
+              // Update health status - we're disconnected
+              yield* updateGatewayStatus(false)
 
               // Check if we should reconnect based on close code
               if (SimpleConnectionManager.shouldReconnect(state.code)) {
@@ -234,6 +241,8 @@ export class DiscordGatewayService extends Effect.Service<DiscordGatewayService>
               }
             } else if (WebSocketState.$is('Failed')(state)) {
               yield* Effect.logError('❌ Discord Gateway connection failed', state.error)
+              // Update health status - connection failed
+              yield* updateGatewayStatus(false)
               yield* Queue.shutdown(eventQueue)
             }
           }),
@@ -260,7 +269,16 @@ export class DiscordGatewayService extends Effect.Service<DiscordGatewayService>
         Effect.tapError((error) =>
           Effect.logError('❌ Failed to establish Discord Gateway connection after all retries', error),
         ),
-        Effect.withSpan('discord-gateway-connect-resilient'),
+        // This creates a new root trace for the entire reconnection sequence
+        Effect.withSpan('gateway.reconnect', {
+          root: true,
+          attributes: {
+            'span.label': 'Gateway reconnection',
+            'reconnect.max_attempts': 10,
+            'reconnect.base_delay': '1 second',
+            'reconnect.max_delay': '120 seconds',
+          },
+        }),
       )
 
     // Manual reconnection with proper delay
@@ -304,32 +322,49 @@ const startHeartbeat = (connection: WebSocketConnection, stateRef: Ref.Ref<Gatew
   Effect.gen(function* () {
     yield* Effect.log(`💓 Starting heartbeat every ${interval}ms`)
 
+    let cycleCount = 0
+    
     yield* Effect.repeat(
       Effect.gen(function* () {
-        const state = yield* Ref.get(stateRef)
+        cycleCount++
+        const cycleStartTime = Date.now()
+        
+        // Start a new trace for each heartbeat cycle
+        yield* Effect.gen(function* () {
+          const state = yield* Ref.get(stateRef)
 
-        // Check if last heartbeat was acknowledged
-        if (!state.heartbeatAcknowledged) {
-          yield* Effect.logWarning('⚠️ Heartbeat not acknowledged, connection may be stale')
-        }
+          // Check if last heartbeat was acknowledged
+          if (!state.heartbeatAcknowledged) {
+            yield* Effect.logWarning('⚠️ Heartbeat not acknowledged, connection may be stale')
+          }
 
-        // Send heartbeat
-        const payload: Discord.GatewayHeartbeat = {
-          op: Discord.GatewayOpcodes.Heartbeat,
-          d: state.seq,
-        }
+          // Send heartbeat
+          const payload: Discord.GatewayHeartbeat = {
+            op: Discord.GatewayOpcodes.Heartbeat,
+            d: state.seq,
+          }
 
-        yield* connection.send(JSON.stringify(payload))
-        yield* Ref.update(stateRef, (s) => ({ ...s, heartbeatAcknowledged: false }))
-      }).pipe(Effect.withSpan('discord-gateway-heartbeat')),
+          yield* connection.send(JSON.stringify(payload)).pipe(
+            Effect.withSpan('heartbeat.send')
+          )
+          yield* Ref.update(stateRef, (s) => ({ ...s, heartbeatAcknowledged: false }))
+          
+          // The ACK will be received in the message handler and update heartbeatAcknowledged
+          // We'll track the latency when we receive the ACK
+        }).pipe(
+          Effect.withSpan('gateway.heartbeat_cycle', {
+            root: true,
+            attributes: {
+              'span.label': `Heartbeat cycle #${cycleCount}`,
+              'heartbeat.interval_ms': interval,
+              'heartbeat.sequence': cycleCount,
+              'heartbeat.timestamp': cycleStartTime,
+            },
+          })
+        )
+      }),
       {
         schedule: Schedule.fixed(interval),
       },
     ).pipe(Effect.forkDaemon)
-  }).pipe(
-    Effect.withSpan('discord-gateway-heartbeat-start', {
-      attributes: {
-        'heartbeat.interval': interval,
-      },
-    }),
-  )
+  })

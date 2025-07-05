@@ -55,6 +55,7 @@ export class AiService extends Effect.Service<AiService>()('AiService', {
             const response = yield* Ai.AiLanguageModel.generateText({ prompt }).pipe(
               Effect.withSpan('ai-generate-text', {
                 attributes: {
+                  'span.label': `Generate title (${GPT_4_1_NANO})`,
                   'ai.model': GPT_4_1_NANO,
                   'ai.max_tokens': 16,
                   'ai.temperature': 0.5,
@@ -73,7 +74,9 @@ export class AiService extends Effect.Service<AiService>()('AiService', {
       }).pipe(
         Effect.withSpan('ai-summarize-message', {
           attributes: {
+            'span.label': `Summarize message (${content.length} chars)`,
             'message.content_length': content.length,
+            'message.content_preview': content.slice(0, 100) + (content.length > 100 ? '...' : ''),
           },
         }),
         Effect.provide(

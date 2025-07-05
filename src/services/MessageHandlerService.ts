@@ -137,7 +137,18 @@ export class MessageHandlerService extends Effect.Service<MessageHandlerService>
             // The bot should be resilient to individual message processing failures
           }),
         ),
-        Effect.withSpan('message-handler-process'),
+        // This is a root span - each message gets its own trace
+        Effect.withSpan('message.process', {
+          root: true,
+          attributes: {
+            'span.label': `@${message.author.username}: "${message.content.slice(0, 50)}${message.content.length > 50 ? '...' : ''}"`,
+            'discord.message.id': message.id,
+            'discord.channel.id': message.channel_id,
+            'discord.user.id': message.author.id,
+            'discord.user.name': message.author.username,
+            'message.length': message.content.length,
+          },
+        }),
       )
 
     return { handleMessage } as const

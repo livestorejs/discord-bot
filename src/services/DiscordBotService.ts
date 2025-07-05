@@ -63,16 +63,11 @@ export class DiscordBotService extends Effect.Service<DiscordBotService>()('Disc
                 const messageEvent = event as DiscordMessageEvent
                 const message = messageEvent.message
 
-                // Handle the message
+                // Handle the message - this starts a new root trace
                 yield* messageHandler.handleMessage(message).pipe(Effect.catchAll(() => Effect.succeed(undefined)))
               }
-            }).pipe(
-              Effect.withSpan('bot-process-event', {
-                attributes: {
-                  'event.type': event._tag,
-                },
-              }),
-            ),
+              // Other events (READY, etc.) can be traced separately if needed
+            }),
           )
 
         // Main bot loop with automatic reconnection
@@ -103,9 +98,17 @@ export class DiscordBotService extends Effect.Service<DiscordBotService>()('Disc
               yield* Effect.log('🛑 Shutting down Discord bot...')
               yield* Scope.close(scope, Exit.void)
               yield* Effect.log('✅ Discord bot shutdown complete')
-            }).pipe(Effect.withSpan('bot-shutdown')),
+            }).pipe(Effect.withSpan('bot-shutdown', { root: true })),
         }
-      }).pipe(Effect.withSpan('bot-startup'))
+      }).pipe(
+        Effect.withSpan('bot.startup', {
+          root: true,
+          attributes: {
+            'span.label': 'Bot startup',
+            'bot.service': 'discord-bot-livestore',
+          },
+        }),
+      )
 
     return { start } as const
   }),

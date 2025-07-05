@@ -1,13 +1,18 @@
 import { NodeRuntime } from '@effect/platform-node'
-import { Effect, Logger } from 'effect'
+import { Effect, Layer, Logger } from 'effect'
 import { DiscordBotService } from './services/DiscordBotService.js'
+import { startHealthServer } from './services/HealthService.js'
 import { MainLive } from './services/MainLive.js'
+import { ObservabilityLive } from './services/ObservabilityService.js'
 
 /**
  * Main application entry point using Effect
  */
 const program = Effect.gen(function* () {
   yield* Effect.log('🚀 Starting Discord ThreadBot...')
+
+  // Start health server
+  const healthServer = yield* startHealthServer()
 
   // Get the bot service
   const botService = yield* DiscordBotService
@@ -20,6 +25,7 @@ const program = Effect.gen(function* () {
     Effect.gen(function* () {
       yield* Effect.log('🔔 Received shutdown signal, shutting down gracefully...')
       yield* shutdown()
+      yield* healthServer.shutdown()
       yield* Effect.log('👋 Goodbye!')
     }).pipe(Effect.withSpan('main-shutdown-handler'))
 
@@ -36,7 +42,12 @@ const program = Effect.gen(function* () {
 
   // Keep the process alive
   yield* Effect.never
-}).pipe(Effect.withSpan('main-program'))
+})
+
+// Combine all layers
+const AppLive = Layer.merge(MainLive, ObservabilityLive).pipe(
+  Layer.provide(Logger.pretty),
+)
 
 // Run the program
-NodeRuntime.runMain(program.pipe(Effect.provide(MainLive), Effect.provide(Logger.pretty)))
+NodeRuntime.runMain(program.pipe(Effect.provide(AppLive)))

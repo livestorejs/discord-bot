@@ -110,7 +110,15 @@ export class DiscordApiService extends Effect.Service<DiscordApiService>()('Disc
       }).pipe(
         // Add retry logic for network and rate limit errors
         ErrorRecovery.withNetworkRetry,
-        Effect.withSpan('discord-api-create-thread'),
+        Effect.withSpan('discord-api-create-thread', {
+          attributes: {
+            'span.label': `Create thread: "${threadName}"`,
+            'discord.channel.id': channelId,
+            'discord.message.id': messageId,
+            'thread.name': threadName,
+            'thread.type': THREAD_TYPE_PUBLIC,
+          },
+        }),
       )
 
     return { createThread } as const

@@ -14,6 +14,9 @@ importers:
       '@effect/ai-openai':
         specifier: ^0.19.4
         version: 0.19.4(@effect/ai@0.16.4(@effect/experimental@0.46.3(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(@effect/experimental@0.46.3(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12)
+      '@effect/opentelemetry':
+        specifier: ^0.53.8
+        version: 0.53.8(@effect/platform@0.87.7(effect@3.16.12))(@opentelemetry/semantic-conventions@1.34.0)(effect@3.16.12)
       '@effect/platform':
         specifier: ^0.87.7
         version: 0.87.7(effect@3.16.12)
@@ -139,6 +142,35 @@ packages:
       ioredis:
         optional: true
       lmdb:
+        optional: true
+
+  '@effect/opentelemetry@0.53.8':
+    resolution: {integrity: sha512-XECQtmAozz1Eu2gdGCNpDv1UnoFW9ee3xultdxTcKoZtZDoPfzucMgcbiV8n9/1CHjP9wKvl0zhwDm/iHcKVVw==}
+    peerDependencies:
+      '@effect/platform': ^0.87.7
+      '@opentelemetry/api': ^1.9
+      '@opentelemetry/resources': ^2.0.0
+      '@opentelemetry/sdk-logs': '*'
+      '@opentelemetry/sdk-metrics': ^2.0.0
+      '@opentelemetry/sdk-trace-base': ^2.0.0
+      '@opentelemetry/sdk-trace-node': ^2.0.0
+      '@opentelemetry/sdk-trace-web': ^2.0.0
+      '@opentelemetry/semantic-conventions': ^1.33.0
+      effect: ^3.16.12
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+      '@opentelemetry/resources':
+        optional: true
+      '@opentelemetry/sdk-logs':
+        optional: true
+      '@opentelemetry/sdk-metrics':
+        optional: true
+      '@opentelemetry/sdk-trace-base':
+        optional: true
+      '@opentelemetry/sdk-trace-node':
+        optional: true
+      '@opentelemetry/sdk-trace-web':
         optional: true
 
   '@effect/platform-node-shared@0.42.11':
@@ -984,6 +1016,12 @@ snapshots:
       '@effect/platform': 0.87.7(effect@3.16.12)
       effect: 3.16.12
       uuid: 11.1.0
+
+  '@effect/opentelemetry@0.53.8(@effect/platform@0.87.7(effect@3.16.12))(@opentelemetry/semantic-conventions@1.34.0)(effect@3.16.12)':
+    dependencies:
+      '@effect/platform': 0.87.7(effect@3.16.12)
+      '@opentelemetry/semantic-conventions': 1.34.0
+      effect: 3.16.12
 
   '@effect/platform-node-shared@0.42.11(@effect/cluster@0.41.11(@effect/platform@0.87.7(effect@3.16.12))(@effect/rpc@0.64.8(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(@effect/sql@0.40.8(@effect/experimental@0.46.3(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(@effect/workflow@0.4.8(@effect/platform@0.87.7(effect@3.16.12))(@effect/rpc@0.64.8(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(effect@3.16.12))(effect@3.16.12))(@effect/platform@0.87.7(effect@3.16.12))(@effect/rpc@0.64.8(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(@effect/sql@0.40.8(@effect/experimental@0.46.3(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(@effect/platform@0.87.7(effect@3.16.12))(effect@3.16.12))(effect@3.16.12)':
     dependencies:

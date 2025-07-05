@@ -1,6 +1,22 @@
 version: "0.5"
 
 processes:
+  otel-lgtm:
+    command: bash -c "docker stop discord-bot-otel-lgtm 2>/dev/null || true && docker rm discord-bot-otel-lgtm 2>/dev/null || true && docker run --rm -p 3001:3000 -p 4327:4317 -p 4328:4318 --name discord-bot-otel-lgtm grafana/otel-lgtm"
+    availability:
+      restart: "always"
+      backoff_seconds: 2
+      max_restarts: 100
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 3001
+        path: /api/health
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
   bot:
     # TODO: Remove tee workaround once https://github.com/F1bonacc1/process-compose/issues/361 is fixed
     # The flush_each_line option doesn't work, so we manually tee logs for real-time file output
@@ -9,6 +25,19 @@ processes:
       restart: "always"
       backoff_seconds: 2
       max_restarts: 100
+    depends_on:
+      otel-lgtm:
+        condition: process_started
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 8080
+        path: /api/health
+      initial_delay_seconds: 5
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
   # test:
   #   command: bun vitest
   #   availability:
