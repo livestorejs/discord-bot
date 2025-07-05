@@ -17,7 +17,7 @@ processes:
     # The flush_each_line option doesn't work, so we manually tee logs for real-time file output
     command: bash -c "mkdir -p ./logs && exec bun src/main.ts 2>&1 | tee -a ./logs/bot-prod.log"
     availability:
-      restart: "on_failure"
+      restart: "always"
       backoff_seconds: 5
       max_restarts: 10
     environment:

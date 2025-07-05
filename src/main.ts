@@ -1,39 +1,42 @@
-import { DiscordBot } from './bot.js'
-import { loadConfig } from './config.js'
-import { logger } from './logger.js'
+import { NodeRuntime } from '@effect/platform-node'
+import { Effect, Logger } from 'effect'
+import { DiscordBotService } from './services/DiscordBotService.js'
+import { MainLive } from './services/MainLive.js'
 
 /**
- * Main application entry point
+ * Main application entry point using Effect
  */
-const main = async (): Promise<void> => {
-  try {
-    logger.log('🚀 Starting Discord ThreadBot...')
+const program = Effect.gen(function* () {
+  yield* Effect.log('🚀 Starting Discord ThreadBot...')
 
-    // Load configuration
-    const config = loadConfig()
-    logger.log('✅ Configuration loaded successfully')
+  // Get the bot service
+  const botService = yield* DiscordBotService
 
-    // Create and start the bot
-    const bot = new DiscordBot(config)
+  // Start the bot
+  const { shutdown } = yield* botService['start']()
 
-    await bot.start()
-    logger.log('🎉 Bot started and ready to process messages')
+  // Set up graceful shutdown
+  const shutdownHandler = () =>
+    Effect.gen(function* () {
+      yield* Effect.log('🔔 Received shutdown signal, shutting down gracefully...')
+      yield* shutdown()
+      yield* Effect.log('👋 Goodbye!')
+    }).pipe(Effect.withSpan('main-shutdown-handler'))
 
-    // Keep the process alive
-    setInterval(() => {
-      if (!bot.running) {
-        logger.error('❌ Bot is no longer running, exiting...')
-        process.exit(1)
-      }
-    }, 60000) // Check every 60 seconds (reduced from 30s to avoid spam during reconnections)
-  } catch (error) {
-    logger.error('💥 Failed to start bot:', error)
-    process.exit(1)
-  }
-}
+  // Register shutdown handlers
+  process.on('SIGINT', () => {
+    Effect.runPromise(shutdownHandler()).then(() => process.exit(0))
+  })
+  process.on('SIGTERM', () => {
+    Effect.runPromise(shutdownHandler()).then(() => process.exit(0))
+  })
+  process.on('SIGHUP', () => {
+    Effect.runPromise(shutdownHandler()).then(() => process.exit(0))
+  })
 
-// Start the application
-main().catch((error) => {
-  logger.error('💥 Critical error:', error)
-  process.exit(1)
-})
+  // Keep the process alive
+  yield* Effect.never
+}).pipe(Effect.withSpan('main-program'))
+
+// Run the program
+NodeRuntime.runMain(program.pipe(Effect.provide(MainLive), Effect.provide(Logger.pretty)))

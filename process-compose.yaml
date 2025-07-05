@@ -6,8 +6,18 @@ processes:
     # The flush_each_line option doesn't work, so we manually tee logs for real-time file output
     command: bash -c "mkdir -p ./logs && exec bun --watch src/main.ts 2>&1 | tee -a ./logs/bot-dev.log"
     availability:
-      restart: "on_failure"
+      restart: "always"
       backoff_seconds: 2
       max_restarts: 100
-    environment:
-      - NODE_ENV=development
+  # test:
+  #   command: bun vitest
+  #   availability:
+  #     restart: "always"
+  #     backoff_seconds: 2
+  #     max_restarts: 100
+  tsc:
+    command: bun tsc --watch
+    availability:
+      restart: "always"
+      backoff_seconds: 2
+      max_restarts: 100
