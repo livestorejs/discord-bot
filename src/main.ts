@@ -45,9 +45,7 @@ const program = Effect.gen(function* () {
 })
 
 // Combine all layers
-const AppLive = Layer.merge(MainLive, ObservabilityLive).pipe(
-  Layer.provide(Logger.pretty),
-)
+const AppLive = Layer.merge(MainLive, ObservabilityLive).pipe(Layer.provide(Logger.pretty))
 
 // Run the program
 NodeRuntime.runMain(program.pipe(Effect.provide(AppLive)))

@@ -1,0 +1,12 @@
+apiVersion: 1
+datasources:
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    url: http://tempo:3200
+    access: proxy
+    isDefault: true
+    jsonData:
+      spanBar:
+        type: Tag      # show a span attribute instead of duration
+        tag: service.name   # pick any OTEL span attribute you like

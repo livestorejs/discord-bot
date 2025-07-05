@@ -15,6 +15,7 @@ export const mockConfig = {
     enabled: true,
     minMessageLength: 10,
   },
+  adminUserIds: [],
 }
 
 /**
