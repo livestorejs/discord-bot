@@ -2,7 +2,18 @@ version: "0.5"
 
 processes:
   otel-lgtm:
-    command: bash -c "docker stop discord-bot-otel-lgtm 2>/dev/null || true && docker rm discord-bot-otel-lgtm 2>/dev/null || true && docker run --rm -p 3001:3000 -p 4327:4317 -p 4328:4318 --name discord-bot-otel-lgtm grafana/otel-lgtm"
+    command: |
+      bash -c "
+        docker stop discord-bot-otel-lgtm 2>/dev/null || true && \
+        docker rm discord-bot-otel-lgtm 2>/dev/null || true && \
+        docker run --rm \
+          -p 3001:3000 \
+          -p 4327:4317 \
+          -p 4328:4318 \
+          -v ${WORKSPACE_ROOT}/config/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources \
+          --name discord-bot-otel-lgtm \
+          grafana/otel-lgtm
+      "
     availability:
       restart: "always"
       backoff_seconds: 2

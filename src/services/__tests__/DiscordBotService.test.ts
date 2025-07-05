@@ -8,7 +8,9 @@ import {
   type DiscordMessage,
   DiscordMessageEvent,
 } from '../DiscordGatewayService.js'
+import { InteractionHandlerService } from '../InteractionHandlerService.js'
 import { MessageHandlerService, MessageProcessingError } from '../MessageHandlerService.js'
+import { SlashCommandService } from '../SlashCommandService.js'
 
 describe('DiscordBotService', () => {
   const mockMessage: DiscordMessage = {
@@ -331,10 +333,33 @@ describe('DiscordBotService', () => {
         }),
       )
 
+      // Mock InteractionHandlerService
+      const MockInteractionHandlerServiceLive = Layer.succeed(
+        InteractionHandlerService,
+        InteractionHandlerService.of({
+          _tag: 'InteractionHandlerService',
+          handleInteraction: () => Effect.succeed(undefined),
+        }),
+      )
+
+      // Mock SlashCommandService
+      const MockSlashCommandServiceLive = Layer.succeed(
+        SlashCommandService,
+        SlashCommandService.of({
+          _tag: 'SlashCommandService',
+          registerCommand: () => Effect.succeed(undefined),
+          getCommand: () => Effect.die('getCommand should not be called in tests'),
+          executeCommand: () => Effect.succeed(undefined),
+          listCommands: () => Effect.succeed([]),
+        }),
+      )
+
       // Build the test layer - provide mocks before the service
       const TestLayer = DiscordBotServiceLive.pipe(
         Layer.provide(MockDiscordGatewayServiceLive),
         Layer.provide(MockMessageHandlerServiceLive),
+        Layer.provide(MockInteractionHandlerServiceLive),
+        Layer.provide(MockSlashCommandServiceLive),
       )
 
       // Run with all required layers
@@ -497,10 +522,33 @@ describe('DiscordBotService', () => {
         }),
       )
 
+      // Mock InteractionHandlerService
+      const MockInteractionHandlerServiceLive = Layer.succeed(
+        InteractionHandlerService,
+        InteractionHandlerService.of({
+          _tag: 'InteractionHandlerService',
+          handleInteraction: () => Effect.succeed(undefined),
+        }),
+      )
+
+      // Mock SlashCommandService
+      const MockSlashCommandServiceLive = Layer.succeed(
+        SlashCommandService,
+        SlashCommandService.of({
+          _tag: 'SlashCommandService',
+          registerCommand: () => Effect.succeed(undefined),
+          getCommand: () => Effect.die('getCommand should not be called in tests'),
+          executeCommand: () => Effect.succeed(undefined),
+          listCommands: () => Effect.succeed([]),
+        }),
+      )
+
       // Build the test layer - provide mocks before the service
       const TestLayer = DiscordBotServiceLive.pipe(
         Layer.provide(MockDiscordGatewayServiceLive),
         Layer.provide(MockMessageHandlerServiceLive),
+        Layer.provide(MockInteractionHandlerServiceLive),
+        Layer.provide(MockSlashCommandServiceLive),
       )
 
       // Run with all required layers
@@ -657,10 +705,33 @@ describe('DiscordBotService', () => {
         }),
       )
 
+      // Mock InteractionHandlerService
+      const MockInteractionHandlerServiceLive = Layer.succeed(
+        InteractionHandlerService,
+        InteractionHandlerService.of({
+          _tag: 'InteractionHandlerService',
+          handleInteraction: () => Effect.succeed(undefined),
+        }),
+      )
+
+      // Mock SlashCommandService
+      const MockSlashCommandServiceLive = Layer.succeed(
+        SlashCommandService,
+        SlashCommandService.of({
+          _tag: 'SlashCommandService',
+          registerCommand: () => Effect.succeed(undefined),
+          getCommand: () => Effect.die('getCommand should not be called in tests'),
+          executeCommand: () => Effect.succeed(undefined),
+          listCommands: () => Effect.succeed([]),
+        }),
+      )
+
       // Build the test layer - provide mocks before the service
       const TestLayer = DiscordBotServiceLive.pipe(
         Layer.provide(MockDiscordGatewayServiceLive),
         Layer.provide(MockMessageHandlerServiceLive),
+        Layer.provide(MockInteractionHandlerServiceLive),
+        Layer.provide(MockSlashCommandServiceLive),
       )
 
       // Run with all required layers

@@ -1,6 +1,14 @@
 import { Effect, Exit, Schema, Scope, Stream } from 'effect'
-import { DiscordGatewayService, type DiscordMessageEvent } from './DiscordGatewayService.js'
+import { DocsCommand } from '../commands/DocsCommand.js'
+import {
+  type DiscordEvent,
+  DiscordGatewayService,
+  type DiscordInteractionEvent,
+  type DiscordMessageEvent,
+} from './DiscordGatewayService.js'
+import { InteractionHandlerService } from './InteractionHandlerService.js'
 import { MessageHandlerService } from './MessageHandlerService.js'
+import { SlashCommandService } from './SlashCommandService.js'
 
 /**
  * Discord Bot errors
@@ -24,10 +32,18 @@ export class DiscordBotService extends Effect.Service<DiscordBotService>()('Disc
   effect: Effect.gen(function* () {
     const gateway = yield* DiscordGatewayService
     const messageHandler = yield* MessageHandlerService
+    const interactionHandler = yield* InteractionHandlerService
+    const slashCommands = yield* SlashCommandService
 
-    const start = (): Effect.Effect<BotShutdown, DiscordBotStartupError> =>
+    const start = (): Effect.Effect<BotShutdown, DiscordBotStartupError, never> =>
       Effect.gen(function* () {
         yield* Effect.log('🚀 Starting Discord bot...')
+
+        // Register slash commands
+        yield* slashCommands.registerCommand(DocsCommand).pipe(
+          Effect.tapError((error) => Effect.logError('Failed to register /docs command', error)),
+          Effect.catchAll(() => Effect.succeed(undefined)),
+        )
 
         // Create a scope for managing the bot lifecycle
         const scope = yield* Scope.make()
@@ -56,7 +72,7 @@ export class DiscordBotService extends Effect.Service<DiscordBotService>()('Disc
         )
 
         // Process events from a connection
-        const processConnection = (connection: { events: Stream.Stream<any> }) =>
+        const processConnection = (connection: { events: Stream.Stream<DiscordEvent, never> }) =>
           Stream.runForEach(connection.events, (event) =>
             Effect.gen(function* () {
               if (event._tag === 'DiscordMessageEvent') {
@@ -65,6 +81,15 @@ export class DiscordBotService extends Effect.Service<DiscordBotService>()('Disc
 
                 // Handle the message - this starts a new root trace
                 yield* messageHandler.handleMessage(message).pipe(Effect.catchAll(() => Effect.succeed(undefined)))
+              } else if (event._tag === 'DiscordInteractionEvent') {
+                const interactionEvent = event as DiscordInteractionEvent
+                const interaction = interactionEvent.interaction
+
+                // Handle the interaction - this starts a new root trace
+                yield* interactionHandler.handleInteraction(interaction).pipe(
+                  Effect.tapError((error) => Effect.logError('Failed to handle interaction', error)),
+                  Effect.catchAll(() => Effect.succeed(undefined)),
+                )
               }
               // Other events (READY, etc.) can be traced separately if needed
             }),
@@ -108,9 +133,14 @@ export class DiscordBotService extends Effect.Service<DiscordBotService>()('Disc
             'bot.service': 'discord-bot-livestore',
           },
         }),
-      )
+      ) as any as Effect.Effect<BotShutdown, DiscordBotStartupError, never>
 
     return { start } as const
   }),
-  dependencies: [DiscordGatewayService.Default, MessageHandlerService.Default],
+  dependencies: [
+    DiscordGatewayService.Default,
+    MessageHandlerService.Default,
+    InteractionHandlerService.Default,
+    SlashCommandService.Default,
+  ],
 }) {}

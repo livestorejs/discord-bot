@@ -67,7 +67,41 @@ export class DiscordMessageEvent extends Schema.TaggedClass<DiscordMessageEvent>
   message: DiscordMessageSchema,
 }) {}
 
-export type DiscordEvent = DiscordGatewayEvent | DiscordMessageEvent
+// Discord Interaction schemas - simplified for now
+export const InteractionSchema = Schema.Struct({
+  id: Schema.String,
+  application_id: Schema.String,
+  type: Schema.Number,
+  data: Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    type: Schema.Number,
+    options: Schema.optional(
+      Schema.Array(
+        Schema.Struct({
+          name: Schema.String,
+          value: Schema.Union(Schema.String, Schema.Number, Schema.Boolean),
+          type: Schema.Number,
+        }),
+      ),
+    ),
+  }),
+  channel_id: Schema.String,
+  token: Schema.String,
+  user: Schema.Struct({
+    id: Schema.String,
+    username: Schema.String,
+    discriminator: Schema.String,
+  }),
+})
+
+export type DiscordInteraction = typeof InteractionSchema.Type
+
+export class DiscordInteractionEvent extends Schema.TaggedClass<DiscordInteractionEvent>()('DiscordInteractionEvent', {
+  interaction: InteractionSchema,
+}) {}
+
+export type DiscordEvent = DiscordGatewayEvent | DiscordMessageEvent | DiscordInteractionEvent
 
 /**
  * Gateway connection interface
@@ -192,6 +226,12 @@ export class DiscordGatewayService extends Effect.Service<DiscordGatewayService>
                 } else if (dispatchPayload.t === 'MESSAGE_CREATE') {
                   const message = dispatchPayload.d
                   yield* Queue.offer(eventQueue, new DiscordMessageEvent({ message }))
+                } else if (dispatchPayload.t === 'INTERACTION_CREATE') {
+                  const interaction = dispatchPayload.d as any
+                  // Only handle slash commands for now (type 2)
+                  if (interaction.type === 2) {
+                    yield* Queue.offer(eventQueue, new DiscordInteractionEvent({ interaction }))
+                  }
                 }
 
                 // Emit generic event for all dispatches
@@ -302,7 +342,10 @@ const identify = (connection: WebSocketConnection, token: string) =>
       op: Discord.GatewayOpcodes.Identify,
       d: {
         token,
-        intents: Discord.GatewayIntentBits.GuildMessages | Discord.GatewayIntentBits.MessageContent,
+        intents:
+          Discord.GatewayIntentBits.GuildMessages |
+          Discord.GatewayIntentBits.MessageContent |
+          Discord.GatewayIntentBits.Guilds,
         properties: {
           os: 'linux',
           browser: 'discord-bot',
@@ -323,12 +366,12 @@ const startHeartbeat = (connection: WebSocketConnection, stateRef: Ref.Ref<Gatew
     yield* Effect.log(`💓 Starting heartbeat every ${interval}ms`)
 
     let cycleCount = 0
-    
+
     yield* Effect.repeat(
       Effect.gen(function* () {
         cycleCount++
         const cycleStartTime = Date.now()
-        
+
         // Start a new trace for each heartbeat cycle
         yield* Effect.gen(function* () {
           const state = yield* Ref.get(stateRef)
@@ -344,11 +387,9 @@ const startHeartbeat = (connection: WebSocketConnection, stateRef: Ref.Ref<Gatew
             d: state.seq,
           }
 
-          yield* connection.send(JSON.stringify(payload)).pipe(
-            Effect.withSpan('heartbeat.send')
-          )
+          yield* connection.send(JSON.stringify(payload)).pipe(Effect.withSpan('heartbeat.send'))
           yield* Ref.update(stateRef, (s) => ({ ...s, heartbeatAcknowledged: false }))
-          
+
           // The ACK will be received in the message handler and update heartbeatAcknowledged
           // We'll track the latency when we receive the ACK
         }).pipe(
@@ -360,7 +401,7 @@ const startHeartbeat = (connection: WebSocketConnection, stateRef: Ref.Ref<Gatew
               'heartbeat.sequence': cycleCount,
               'heartbeat.timestamp': cycleStartTime,
             },
-          })
+          }),
         )
       }),
       {

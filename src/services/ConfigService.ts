@@ -22,6 +22,9 @@ export const BotConfigSchema = Schema.Struct({
     Schema.annotations({ description: 'List of channel IDs where the bot operates' }),
   ),
   messageFiltering: MessageFilteringSchema,
+  adminUserIds: Schema.Array(Schema.String).pipe(
+    Schema.annotations({ description: 'List of user IDs with admin permissions for slash commands' }),
+  ),
 })
 
 /**
@@ -56,6 +59,11 @@ const DEFAULT_MESSAGE_FILTERING = {
 }
 
 /**
+ * Admin user IDs (empty by default, should be configured via environment variables)
+ */
+const ADMIN_USER_IDS: string[] = []
+
+/**
  * ConfigService provides configuration management
  */
 export class ConfigService extends Effect.Service<ConfigService>()('ConfigService', {
@@ -78,11 +86,23 @@ export class ConfigService extends Effect.Service<ConfigService>()('ConfigServic
       yield* new ConfigurationError({ message: 'OPENAI_KEY environment variable is required' })
     }
 
+    // Load admin user IDs from environment (comma-separated)
+    const adminUserIds = yield* Config.string('ADMIN_USER_IDS').pipe(
+      Effect.map((ids) =>
+        ids
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0),
+      ),
+      Effect.catchAll(() => Effect.succeed(ADMIN_USER_IDS)),
+    )
+
     const config: BotConfig = {
       discordToken: discordTokenStr,
       openaiKey: openaiKeyStr,
       channelIds: CHANNEL_IDS,
       messageFiltering: DEFAULT_MESSAGE_FILTERING,
+      adminUserIds,
     }
 
     // Validate the entire config against the schema

@@ -30,16 +30,15 @@
           
           shellHook = ''
             echo "Start development:"
-            echo "  process-compose -U up -D"
+            echo "  pc-socket up"
             echo ""
             echo "Start production:"
-            echo "  process-compose -f process-compose.prod.yaml -U up -D"
+            echo "  process-compose -f process-compose.prod.yaml -U up -t=false &"
             echo ""
             echo "Commands:"
-            echo "  process-compose process list        - Check status"
-            echo "  process-compose process restart bot - Restart"
-            echo "  process-compose down                - Stop all"
-            echo "  process-compose attach              - Interactive UI (humans)"
+            echo "  pc-socket status                    - Check status"
+            echo "  pc-socket down                      - Stop all"
+            echo "  pc-socket attach                    - Interactive UI (humans)"
             echo "  tail -f logs/bot-dev.log            - View logs"
           '';
         };

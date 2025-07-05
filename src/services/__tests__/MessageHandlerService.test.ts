@@ -17,6 +17,9 @@ describe('MessageHandlerService', () => {
   const MockDiscordApiServiceLive = Layer.succeed(DiscordApiService, {
     _tag: 'DiscordApiService',
     createThread: () => Effect.succeed(undefined),
+    acknowledgeInteraction: () => Effect.succeed(undefined),
+    editInteractionResponse: () => Effect.succeed(undefined),
+    createGlobalCommand: () => Effect.succeed(undefined),
   } as DiscordApiService)
 
   // Note: Logger mocking removed due to API complexity
@@ -143,6 +146,9 @@ describe('MessageHandlerService', () => {
               response: '{"error": "Missing permissions"}',
             }),
           ),
+        acknowledgeInteraction: () => Effect.succeed(undefined),
+        editInteractionResponse: () => Effect.succeed(undefined),
+        createGlobalCommand: () => Effect.succeed(undefined),
       } as DiscordApiService)
 
       return Effect.gen(function* () {

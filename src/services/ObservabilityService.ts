@@ -10,7 +10,7 @@ export const ObservabilityLive = Layer.unwrapEffect(
   Effect.gen(function* () {
     const baseUrl = yield* Config.string('OTEL_EXPORTER_OTLP_ENDPOINT')
     const serviceName = yield* Config.string('OTEL_SERVICE_NAME')
-    
+
     return Otlp.layer({
       baseUrl,
       resource: { serviceName },

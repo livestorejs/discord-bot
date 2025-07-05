@@ -1,5 +1,5 @@
-import { Effect, Ref, Schema } from 'effect'
 import * as http from 'node:http'
+import { Effect, Ref, Schema } from 'effect'
 
 /**
  * Health status schema
