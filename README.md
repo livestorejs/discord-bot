@@ -48,26 +48,37 @@ export const CHANNEL_IDS = [
 
 **Start development:**
 ```bash
-process-compose -U up -D
+pc-socket up
 ```
 
-No need to re-start process-compose after changes. `bun --watch` will automatically restart the bot.
-
-**Expected state**: Process-compose should always be running in daemon mode. If commands fail with socket errors, restart it.
+The bot runs in detached mode with auto-restart. No need to restart after code changes - `bun --watch` handles this automatically.
 
 **Start production:**
 ```bash
-process-compose -f process-compose.prod.yaml -U up -D
+process-compose -f process-compose.prod.yaml -U up -t=false &
 ```
 
 **Commands:**
 ```bash
-process-compose process list        # Check status
-process-compose process restart bot # Restart
-process-compose down                # Stop all
-process-compose attach              # Interactive UI (humans)
+pc-socket status                    # Check status
+pc-socket down                      # Stop all (with timeout handling)
+pc-socket attach                    # Interactive UI (humans)  
+process-compose process restart bot # Restart specific process
 tail -f logs/bot-dev.log            # View logs (real-time)
 ```
+
+**Process-compose script** (`pc-socket`):
+- `up`: Start in detached socket mode with comprehensive cleanup
+- `down`: Stop gracefully with timeout + force kill fallback  
+- `status`: List running processes with timeout protection
+- `attach`: Attach to interactive UI with socket validation
+
+**Important for AI agents**: Always use `pc-socket up` to start process-compose. The script handles:
+- Port cleanup (kills conflicting processes on port 8080)
+- Socket file management
+- Existing process-compose cleanup  
+- Socket creation verification
+- Proper error handling and timeouts
 
 **Note**: Logs are written in real-time to both the terminal UI and log files using a `tee` workaround due to [process-compose issue #361](https://github.com/F1bonacc1/process-compose/issues/361).
 

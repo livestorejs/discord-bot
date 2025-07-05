@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Simple process-compose wrapper with essential reliability fixes
+
+SOCKET_PATH="${PC_SOCKET_PATH:-.process-compose.sock}"
+
+case "$1" in
+  up|start) 
+    # Kill conflicts and start clean
+    pkill -f "process-compose.*up" 2>/dev/null || true
+    lsof -ti :8080 2>/dev/null | xargs kill 2>/dev/null || true
+    rm -f "$SOCKET_PATH"
+    sleep 1
+    
+    # Start detached
+    nohup process-compose -U up -t=false &>/dev/null & disown
+    echo "Process-compose started"
+    ;;
+    
+  down|stop) 
+    timeout 15 process-compose down || (pkill -f "process-compose.*up" && rm -f "$SOCKET_PATH")
+    ;;
+    
+  status) 
+    timeout 5 process-compose process list 2>/dev/null || echo "Not running"
+    ;;
+    
+  attach) 
+    process-compose attach
+    ;;
+    
+  *) 
+    echo "Usage: pc-socket {up|down|status|attach}"
+    exit 1
+    ;;
+esac
