@@ -3,10 +3,10 @@
   "type": "module",
   "devDependencies": {
     "@biomejs/biome": "^2.0.6",
+    "@effect/vitest": "^0.23.12",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.13",
-    "vitest": "^3.2.4",
-    "@effect/vitest": "^0.23.12"
+    "vitest": "^3.2.4"
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",
@@ -21,10 +21,12 @@
     "format": "biome format . --write"
   },
   "dependencies": {
-    "discord-api-types": "^0.38.8",
     "@effect/ai": "^0.16.4",
     "@effect/ai-openai": "^0.19.4",
-    "@effect/platform": "^0.82.3",
+    "@effect/opentelemetry": "^0.53.8",
+    "@effect/platform": "^0.87.7",
+    "@effect/platform-node": "^0.88.11",
+    "discord-api-types": "^0.38.8",
     "effect": "^3.16.12",
     "ws": "^8.18.0"
   },

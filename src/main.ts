@@ -1,39 +1,53 @@
-import { DiscordBot } from './bot.js'
-import { loadConfig } from './config.js'
-import { logger } from './logger.js'
+import { NodeRuntime } from '@effect/platform-node'
+import { Effect, Layer, Logger } from 'effect'
+import { DiscordBotService } from './services/DiscordBotService.js'
+import { startHealthServer } from './services/HealthService.js'
+import { MainLive } from './services/MainLive.js'
+import { ObservabilityLive } from './services/ObservabilityService.js'
 
 /**
- * Main application entry point
+ * Main application entry point using Effect
  */
-const main = async (): Promise<void> => {
-  try {
-    logger.log('🚀 Starting Discord ThreadBot...')
+const program = Effect.gen(function* () {
+  yield* Effect.log('🚀 Starting Discord ThreadBot...')
 
-    // Load configuration
-    const config = loadConfig()
-    logger.log('✅ Configuration loaded successfully')
+  // Start health server
+  const healthServer = yield* startHealthServer()
 
-    // Create and start the bot
-    const bot = new DiscordBot(config)
+  // Get the bot service
+  const botService = yield* DiscordBotService
 
-    await bot.start()
-    logger.log('🎉 Bot started and ready to process messages')
+  // Start the bot
+  const { shutdown } = yield* botService['start']()
 
-    // Keep the process alive
-    setInterval(() => {
-      if (!bot.running) {
-        logger.error('❌ Bot is no longer running, exiting...')
-        process.exit(1)
-      }
-    }, 60000) // Check every 60 seconds (reduced from 30s to avoid spam during reconnections)
-  } catch (error) {
-    logger.error('💥 Failed to start bot:', error)
-    process.exit(1)
-  }
-}
+  // Set up graceful shutdown
+  const shutdownHandler = () =>
+    Effect.gen(function* () {
+      yield* Effect.log('🔔 Received shutdown signal, shutting down gracefully...')
+      yield* shutdown()
+      yield* healthServer.shutdown()
+      yield* Effect.log('👋 Goodbye!')
+    }).pipe(Effect.withSpan('main-shutdown-handler'))
 
-// Start the application
-main().catch((error) => {
-  logger.error('💥 Critical error:', error)
-  process.exit(1)
+  // Register shutdown handlers
+  process.on('SIGINT', () => {
+    Effect.runPromise(shutdownHandler()).then(() => process.exit(0))
+  })
+  process.on('SIGTERM', () => {
+    Effect.runPromise(shutdownHandler()).then(() => process.exit(0))
+  })
+  process.on('SIGHUP', () => {
+    Effect.runPromise(shutdownHandler()).then(() => process.exit(0))
+  })
+
+  // Keep the process alive
+  yield* Effect.never
 })
+
+// Combine all layers
+const AppLive = Layer.merge(MainLive, ObservabilityLive).pipe(
+  Layer.provide(Logger.pretty),
+)
+
+// Run the program
+NodeRuntime.runMain(program.pipe(Effect.provide(AppLive)))
