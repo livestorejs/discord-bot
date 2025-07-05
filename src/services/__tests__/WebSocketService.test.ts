@@ -46,7 +46,7 @@ describe.skip('WebSocketService', () => {
         expect(WebSocketState.$is('Connected')(Array.from(states)[0])).toBe(true)
       })
 
-      await Effect.runPromise(Effect.provide(program, WebSocketService.Default))
+      await Effect.runPromise(Effect.scoped(Effect.provide(program, WebSocketService.Default)))
 
       expect(WebSocket).toHaveBeenCalledWith('ws://localhost:8080')
       expect(mockWs.on).toHaveBeenCalledWith('open', expect.any(Function))
@@ -66,7 +66,7 @@ describe.skip('WebSocketService', () => {
       const testError = new Error('Connection failed')
       errorHandler?.(testError)
 
-      const result = await Effect.runPromiseExit(Effect.provide(program, WebSocketService.Default))
+      const result = await Effect.runPromiseExit(Effect.scoped(Effect.provide(program, WebSocketService.Default)))
 
       expect(Exit.isFailure(result)).toBe(true)
       if (Exit.isFailure(result)) {
@@ -103,7 +103,7 @@ describe.skip('WebSocketService', () => {
         expect((Array.from(messages)[0] as WebSocketTextMessage).data).toBe('Hello, World!')
       })
 
-      await Effect.runPromise(Effect.provide(program, WebSocketService.Default))
+      await Effect.runPromise(Effect.scoped(Effect.provide(program, WebSocketService.Default)))
     })
 
     it('should send messages', async () => {
@@ -120,7 +120,7 @@ describe.skip('WebSocketService', () => {
         yield* connection.send('Test message')
       })
 
-      await Effect.runPromise(Effect.provide(program, WebSocketService.Default))
+      await Effect.runPromise(Effect.scoped(Effect.provide(program, WebSocketService.Default)))
 
       expect(mockWs.send).toHaveBeenCalledWith('Test message')
     })
@@ -164,7 +164,7 @@ describe.skip('WebSocketService', () => {
         }
       })
 
-      await Effect.runPromise(Effect.provide(program, WebSocketService.Default))
+      await Effect.runPromise(Effect.scoped(Effect.provide(program, WebSocketService.Default)))
     })
 
     it('should close connection on request', async () => {
@@ -181,7 +181,7 @@ describe.skip('WebSocketService', () => {
         yield* connection.close(1001, 'Going away')
       })
 
-      await Effect.runPromise(Effect.provide(program, WebSocketService.Default))
+      await Effect.runPromise(Effect.scoped(Effect.provide(program, WebSocketService.Default)))
 
       expect(mockWs.close).toHaveBeenCalledWith(1001, 'Going away')
     })

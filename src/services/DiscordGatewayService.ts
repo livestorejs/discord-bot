@@ -148,15 +148,18 @@ export class DiscordGatewayService extends Effect.Service<DiscordGatewayService>
           heartbeatAcknowledged: true,
         })
 
-        // Event queue
-        const eventQueue = yield* Queue.unbounded<DiscordEvent>()
+        // Event queue with bounded capacity to prevent memory issues
+        // Using sliding queue to keep most recent events if processing falls behind
+        const eventQueue = yield* Queue.sliding<DiscordEvent>(5000)
 
         // Handle incoming messages
         const messageHandler = Stream.runForEach(connection.messages, (msg) =>
           Effect.gen(function* () {
             if (!(msg instanceof WebSocketTextMessage)) return
 
-            const payload = JSON.parse(msg.data) as Discord.GatewayReceivePayload
+            const payload = yield* Schema.decode(
+              Schema.parseJson(Schema.Any as Schema.Schema<Discord.GatewayReceivePayload>),
+            )(msg.data)
 
             // Update sequence number
             if ('s' in payload && payload.s !== null) {

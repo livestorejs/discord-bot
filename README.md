@@ -76,3 +76,9 @@ tail -f logs/bot-dev.log            # View logs (real-time)
 - Restrict OpenAI key to `/v1/chat/completions` endpoint only
 - Set monthly budget limit (e.g., $5)
 - Bot only responds in configured channels
+
+## Roadmap / Ideas
+
+- Slash commands
+  - `/docs`: Looks up the most recent message in the current thread in the LiveStore docs `docs.livestore.dev` and replies with a answer
+  - `/autoname-thread`: Renames the current thread to the AI-generated title

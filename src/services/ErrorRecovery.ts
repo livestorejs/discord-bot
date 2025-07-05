@@ -1,4 +1,41 @@
-import { Effect, Schedule } from 'effect'
+import { Effect, Ref, Schedule, Schema } from 'effect'
+
+/**
+ * Circuit breaker error
+ */
+export class CircuitBreakerOpenError extends Schema.TaggedError<CircuitBreakerOpenError>()('CircuitBreakerOpenError', {
+  cooldownRemaining: Schema.Number,
+}) {}
+
+/**
+ * Parse duration string to milliseconds
+ */
+const parseDuration = (duration: string): number => {
+  const match = duration.match(/^(\d+)\s*(milliseconds?|millis?|seconds?|minutes?|hours?)$/i)
+  if (!match) throw new Error(`Invalid duration format: ${duration}`)
+
+  const value = parseInt(match[1])
+  const unit = match[2].toLowerCase()
+
+  switch (unit) {
+    case 'millisecond':
+    case 'milliseconds':
+    case 'milli':
+    case 'millis':
+      return value
+    case 'second':
+    case 'seconds':
+      return value * 1000
+    case 'minute':
+    case 'minutes':
+      return value * 60 * 1000
+    case 'hour':
+    case 'hours':
+      return value * 60 * 60 * 1000
+    default:
+      throw new Error(`Unknown time unit: ${unit}`)
+  }
+}
 
 /**
  * Retry policies for different types of operations
@@ -50,39 +87,67 @@ export const ErrorRecovery = {
     effect.pipe(Effect.retry(RetryPolicies.rateLimit(retryAfterSeconds)), Effect.withSpan('error-recovery-rate-limit')),
 
   /**
-   * Circuit breaker pattern for failing services
+   * Circuit breaker pattern for failing services using Effect patterns
    */
-  withCircuitBreaker: <A, E>(effect: Effect.Effect<A, E>, failureThreshold: number = 3) => {
-    // Simple circuit breaker implementation
-    // In production, consider using a more sophisticated circuit breaker
-    let consecutiveFailures = 0
-    let lastFailureTime = 0
-    const cooldownPeriod = 30000 // 30 seconds
+  withCircuitBreaker: <A, E>(
+    effect: Effect.Effect<A, E>,
+    failureThreshold: number = 3,
+    cooldownPeriod: string = '30 seconds',
+  ) =>
+    Effect.gen(function* () {
+      // Circuit breaker state
+      const circuitState = yield* Ref.make<{
+        consecutiveFailures: number
+        lastFailureTime: number
+        isOpen: boolean
+      }>({
+        consecutiveFailures: 0,
+        lastFailureTime: 0,
+        isOpen: false,
+      })
 
-    return Effect.gen(function* () {
-      const now = Date.now()
+      return Effect.gen(function* () {
+        const state = yield* Ref.get(circuitState)
+        const now = Date.now()
 
-      // Check if circuit is open
-      if (consecutiveFailures >= failureThreshold) {
-        if (now - lastFailureTime < cooldownPeriod) {
-          yield* Effect.fail('Circuit breaker is open' as any)
-        } else {
-          // Reset circuit breaker after cooldown
-          consecutiveFailures = 0
+        // Check if circuit is open
+        if (state.isOpen) {
+          const cooldownMs = parseDuration(cooldownPeriod)
+          if (now - state.lastFailureTime < cooldownMs) {
+            yield* Effect.fail(
+              new CircuitBreakerOpenError({ cooldownRemaining: cooldownMs - (now - state.lastFailureTime) }),
+            )
+          } else {
+            // Half-open state: allow one request through
+            yield* Ref.update(circuitState, (s) => ({ ...s, isOpen: false }))
+          }
         }
-      }
 
-      try {
-        const result = yield* effect
-        consecutiveFailures = 0 // Reset on success
-        return result
-      } catch (error) {
-        consecutiveFailures++
-        lastFailureTime = now
-        throw error
-      }
-    }).pipe(Effect.withSpan('error-recovery-circuit-breaker'))
-  },
+        // Execute the effect
+        return yield* effect.pipe(
+          Effect.tap(() =>
+            // Reset on success
+            Ref.set(circuitState, {
+              consecutiveFailures: 0,
+              lastFailureTime: 0,
+              isOpen: false,
+            }),
+          ),
+          Effect.catchAll((error) =>
+            Ref.modify(circuitState, (state) => {
+              const newFailures = state.consecutiveFailures + 1
+              const shouldOpen = newFailures >= failureThreshold
+              const newState = {
+                consecutiveFailures: newFailures,
+                lastFailureTime: now,
+                isOpen: shouldOpen,
+              }
+              return [Effect.fail(error), newState]
+            }).pipe(Effect.flatten),
+          ),
+        )
+      }).pipe(Effect.withSpan('error-recovery-circuit-breaker'))
+    }).pipe(Effect.flatten),
 
   /**
    * Fallback strategy - try primary effect, fall back to secondary on failure

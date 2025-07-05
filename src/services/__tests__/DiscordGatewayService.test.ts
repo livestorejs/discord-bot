@@ -50,7 +50,7 @@ describe('DiscordGatewayService', () => {
         ),
       )
 
-      const result = await Effect.runPromiseExit(Effect.provide(program, TestLayer))
+      const result = await Effect.runPromiseExit(Effect.scoped(Effect.provide(program, TestLayer)))
 
       expect(Exit.isFailure(result)).toBe(true)
       if (Exit.isFailure(result)) {
@@ -149,7 +149,7 @@ describe('DiscordGatewayService', () => {
         Layer.provide(MockWebSocketServiceLive),
       )
 
-      await Effect.runPromise(Effect.provide(program, TestLayer))
+      await Effect.runPromise(Effect.scoped(Effect.provide(program, TestLayer)))
 
       // Verify identify was sent (should contain op: 2)
       console.log('Sent messages count:', sentMessages.length)
@@ -268,7 +268,7 @@ describe('DiscordGatewayService', () => {
         Layer.provide(MockWebSocketServiceLive),
       )
 
-      await Effect.runPromise(Effect.provide(program, TestLayer))
+      await Effect.runPromise(Effect.scoped(Effect.provide(program, TestLayer)))
     })
 
     it.skip('should handle heartbeat flow', async () => {
@@ -340,7 +340,7 @@ describe('DiscordGatewayService', () => {
         Layer.provide(MockWebSocketServiceLive),
       )
 
-      await Effect.runPromise(Effect.provide(program, TestLayer))
+      await Effect.runPromise(Effect.scoped(Effect.provide(program, TestLayer)))
 
       // Should have sent identify message
       console.log('Heartbeat test - Sent messages count:', sentMessages.length)
@@ -433,7 +433,7 @@ describe('DiscordGatewayService', () => {
       )
 
       // Expect this to fail with reconnect error, which is normal behavior
-      const result = await Effect.runPromiseExit(Effect.provide(program, TestLayer))
+      const result = await Effect.runPromiseExit(Effect.scoped(Effect.provide(program, TestLayer)))
 
       // The service should attempt to close the connection on reconnect
       // Note: This might fail as expected since reconnect triggers disconnection

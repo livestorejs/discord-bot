@@ -70,102 +70,159 @@ export interface WebSocketConnection {
 export class WebSocketService extends Effect.Service<WebSocketService>()('WebSocketService', {
   effect: Effect.gen(function* () {
     const connect = (url: string) =>
-      Effect.gen(function* () {
-        const ws = new WebSocket(url)
-        const messageQueue = yield* Queue.unbounded<WebSocketMessage>()
-        const stateQueue = yield* Queue.unbounded<WebSocketState>()
+      Effect.acquireRelease(
+        // Acquire: Create WebSocket connection and resources
+        Effect.gen(function* () {
+          // Create bounded queues with backpressure handling
+          const messageQueue = yield* Queue.sliding<WebSocketMessage>(1000) // Keep last 1000 messages
+          const stateQueue = yield* Queue.bounded<WebSocketState>(10) // Small queue for state changes
 
-        // Set up event handlers
-        yield* Effect.async<void, WebSocketConnectionError>((resume) => {
-          let isConnected = false
+          // Create WebSocket instance
+          const ws = new WebSocket(url)
 
-          ws.on('open', () => {
-            isConnected = true
-            Effect.runSync(Queue.offer(stateQueue, WebSocketState.Connected()))
-            resume(Effect.succeed(undefined))
-          })
+          // Create connection promise
+          const connectionResult = yield* Effect.async<
+            { ws: WebSocket; messageQueue: Queue.Queue<WebSocketMessage>; stateQueue: Queue.Queue<WebSocketState> },
+            WebSocketConnectionError
+          >((resume) => {
+            let isConnected = false
+            const timeoutHandle: { current?: NodeJS.Timeout } = {}
 
-          ws.on('error', (error) => {
-            Effect.runSync(Queue.offer(stateQueue, WebSocketState.Failed({ error })))
-            if (!isConnected) {
-              resume(Effect.fail(new WebSocketConnectionError({ url, cause: error })))
+            const cleanup = () => {
+              if (timeoutHandle.current) {
+                clearTimeout(timeoutHandle.current)
+              }
+              ws.removeAllListeners()
             }
+
+            ws.once('open', () => {
+              isConnected = true
+              cleanup()
+              Effect.runSync(Queue.offer(stateQueue, WebSocketState.Connected()))
+              resume(Effect.succeed({ ws, messageQueue, stateQueue }))
+            })
+
+            ws.once('error', (error) => {
+              if (!isConnected) {
+                cleanup()
+                resume(Effect.fail(new WebSocketConnectionError({ url, cause: error })))
+              }
+            })
+
+            // Connection timeout
+            timeoutHandle.current = setTimeout(() => {
+              if (!isConnected) {
+                cleanup()
+                ws.terminate()
+                resume(
+                  Effect.fail(
+                    new WebSocketConnectionError({
+                      url,
+                      cause: new Error('Connection timeout after 30s'),
+                    }),
+                  ),
+                )
+              }
+            }, 30000)
+
+            return Effect.sync(cleanup)
           })
 
-          ws.on('close', (code, reason) => {
-            Effect.runSync(Queue.offer(stateQueue, WebSocketState.Disconnected({ code, reason: reason.toString() })))
+          const { ws: connectedWs } = connectionResult
+
+          // Set up persistent event handlers after connection
+          connectedWs.on('error', (error) => {
+            Effect.runSync(Queue.offer(stateQueue, WebSocketState.Failed({ error })))
           })
 
-          ws.on('message', (data, isBinary) => {
+          connectedWs.on('close', (code, reason) => {
+            Effect.runSync(
+              Queue.offer(stateQueue, WebSocketState.Disconnected({ code, reason: reason.toString() })).pipe(
+                Effect.andThen(Queue.shutdown(messageQueue)),
+                Effect.andThen(Queue.shutdown(stateQueue)),
+              ),
+            )
+          })
+
+          connectedWs.on('message', (data, isBinary) => {
             const message = isBinary
               ? new WebSocketBinaryMessage({ data: data as Buffer })
               : new WebSocketTextMessage({ data: data.toString() })
+            // Use offerAll to handle backpressure - will drop old messages if queue is full
             Effect.runSync(Queue.offer(messageQueue, message))
           })
 
-          // Handle timeout
-          const timeout = setTimeout(() => {
-            if (!isConnected) {
-              ws.close()
-              resume(
-                Effect.fail(
-                  new WebSocketConnectionError({
-                    url,
-                    cause: new Error('Connection timeout'),
-                  }),
-                ),
-              )
-            }
-          }, 30000)
-
-          return Effect.sync(() => {
-            clearTimeout(timeout)
-            ws.close()
-          })
-        })
-
-        // Create send function
-        const send = (message: string | Buffer) =>
-          Effect.try({
-            try: () => {
-              if (ws.readyState !== WebSocket.OPEN) {
-                throw new WebSocketStateError({
-                  message: 'WebSocket is not in OPEN state',
-                  currentState: ws.readyState,
-                  expectedState: 'OPEN',
-                })
-              }
-              ws.send(message)
-            },
-            catch: (cause) => {
-              if (cause instanceof WebSocketStateError) return cause
-              return new WebSocketSendError({
-                message: 'Failed to send WebSocket message',
-                cause,
-              })
-            },
-          }).pipe(
-            Effect.withSpan('websocket-send', {
-              attributes: {
-                'websocket.message_size': typeof message === 'string' ? message.length : message.byteLength,
-                'websocket.message_type': typeof message === 'string' ? 'text' : 'binary',
+          // Create connection interface
+          const send = (message: string | Buffer) =>
+            Effect.try({
+              try: () => {
+                if (connectedWs.readyState !== WebSocket.OPEN) {
+                  throw new WebSocketStateError({
+                    message: 'WebSocket is not in OPEN state',
+                    currentState: connectedWs.readyState,
+                    expectedState: 'OPEN',
+                  })
+                }
+                connectedWs.send(message)
               },
-            }),
-          )
+              catch: (cause) => {
+                if (cause instanceof WebSocketStateError) return cause
+                return new WebSocketSendError({
+                  message: 'Failed to send WebSocket message',
+                  cause,
+                })
+              },
+            }).pipe(
+              Effect.withSpan('websocket-send', {
+                attributes: {
+                  'websocket.message_size': typeof message === 'string' ? message.length : message.byteLength,
+                  'websocket.message_type': typeof message === 'string' ? 'text' : 'binary',
+                },
+              }),
+            )
 
-        // Create close function
-        const close = (code?: number, reason?: string) =>
-          Effect.sync(() => {
-            ws.close(code, reason)
-          })
+          const close = (code?: number, reason?: string) =>
+            Effect.sync(() => {
+              connectedWs.close(code, reason)
+            })
 
-        return {
-          send,
-          messages: Stream.fromQueue(messageQueue),
-          state: Stream.fromQueue(stateQueue),
-          close,
-        } satisfies WebSocketConnection
-      }).pipe(
+          return {
+            connection: {
+              send,
+              messages: Stream.fromQueue(messageQueue),
+              state: Stream.fromQueue(stateQueue),
+              close,
+            } satisfies WebSocketConnection,
+            ws: connectedWs,
+            messageQueue,
+            stateQueue,
+          }
+        }),
+        // Release: Clean up resources
+        ({ ws, messageQueue, stateQueue }) =>
+          Effect.gen(function* () {
+            yield* Effect.log(`Cleaning up WebSocket connection to ${url}`)
+
+            // Close WebSocket if still open
+            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+              ws.close(1000, 'Normal closure')
+            }
+
+            // Terminate forcefully after a delay if needed
+            yield* Effect.sleep('100 millis')
+            if (ws.readyState !== WebSocket.CLOSED) {
+              ws.terminate()
+            }
+
+            // Shutdown queues
+            yield* Queue.shutdown(messageQueue)
+            yield* Queue.shutdown(stateQueue)
+
+            // Remove all listeners
+            ws.removeAllListeners()
+          }),
+      ).pipe(
+        Effect.map(({ connection }) => connection),
         Effect.withSpan('websocket-connect', {
           attributes: {
             'websocket.url': url,

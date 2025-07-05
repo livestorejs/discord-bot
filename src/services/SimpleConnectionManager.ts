@@ -1,14 +1,14 @@
-import { Effect, Schedule, Schema } from 'effect'
+import { Effect, Schedule, Schema, type Scope } from 'effect'
 
 /**
  * Connect with exponential backoff retry
  */
 export const withExponentialBackoff = <A, E>(
-  connectEffect: Effect.Effect<A, E>,
+  connectEffect: Effect.Effect<A, E, Scope.Scope>,
   maxAttempts: number = 5,
   baseDelay: string = '1 second',
   maxDelay: string = '30 seconds',
-): Effect.Effect<A, E> => {
+): Effect.Effect<A, E, Scope.Scope> => {
   const schedule = Schedule.exponential(baseDelay as any).pipe(
     Schedule.either(Schedule.spaced(maxDelay as any)),
     Schedule.compose(Schedule.recurs(maxAttempts - 1)),
@@ -22,10 +22,10 @@ export const withExponentialBackoff = <A, E>(
  * Handle disconnection with reconnection
  */
 export const handleDisconnection = <A, E>(
-  reconnectEffect: Effect.Effect<A, E>,
+  reconnectEffect: Effect.Effect<A, E, Scope.Scope>,
   reason?: string,
   delay: string = '2 seconds',
-): Effect.Effect<A, E> =>
+): Effect.Effect<A, E, Scope.Scope> =>
   Effect.gen(function* () {
     yield* Effect.log(`🔌 Connection lost${reason ? `: ${reason}` : ''}`)
     yield* Effect.sleep(delay as any)
@@ -37,10 +37,10 @@ export const handleDisconnection = <A, E>(
  * Create a resilient connection with health monitoring
  */
 export const createResilientConnection = <A, E>(
-  connectEffect: Effect.Effect<A, E>,
+  connectEffect: Effect.Effect<A, E, Scope.Scope>,
   healthCheck: (connection: A) => Effect.Effect<boolean>,
   onHealthCheckFail?: () => Effect.Effect<void>,
-): Effect.Effect<A, E> =>
+): Effect.Effect<A, E, Scope.Scope> =>
   Effect.gen(function* () {
     const connection = yield* withExponentialBackoff(connectEffect)
 

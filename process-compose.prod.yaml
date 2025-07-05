@@ -1,16 +1,5 @@
 version: "0.5"
 
-# Production configuration
-# Start with: process-compose -f process-compose.prod.yaml up
-
-log_configuration:
-  rotation:
-    max_size_mb: 10
-    max_age_days: 30
-    max_backups: 10
-  location: ./logs
-  add_timestamp: false
-
 processes:
   bot:
     # TODO: Remove tee workaround once https://github.com/F1bonacc1/process-compose/issues/361 is fixed
@@ -19,6 +8,6 @@ processes:
     availability:
       restart: "always"
       backoff_seconds: 5
-      max_restarts: 10
+      max_restarts: 100
     environment:
       - NODE_ENV=production

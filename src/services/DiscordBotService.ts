@@ -1,4 +1,4 @@
-import { Effect, Fiber, Schedule, Schema, Stream } from 'effect'
+import { Effect, Exit, Schema, Scope, Stream } from 'effect'
 import { DiscordGatewayService, type DiscordMessageEvent } from './DiscordGatewayService.js'
 import { MessageHandlerService } from './MessageHandlerService.js'
 
@@ -29,26 +29,35 @@ export class DiscordBotService extends Effect.Service<DiscordBotService>()('Disc
       Effect.gen(function* () {
         yield* Effect.log('🚀 Starting Discord bot...')
 
-        let isShuttingDown = false
-        let currentConnection: { disconnect: () => Effect.Effect<void> } | null = null
+        // Create a scope for managing the bot lifecycle
+        const scope = yield* Scope.make()
 
-        // Function to establish connection and process events
-        const connectAndProcess = Effect.gen(function* () {
-          // Connect to Discord Gateway
-          const connection = yield* gateway.connect().pipe(
-            Effect.mapError(
-              (error) =>
-                new DiscordBotStartupError({
-                  message: 'Failed to connect to Discord Gateway',
-                  cause: error,
-                }),
+        // Function to handle a single connection lifecycle
+        const createConnection = Effect.acquireRelease(
+          // Acquire: Connect to Discord Gateway
+          gateway
+            .connect()
+            .pipe(
+              Effect.mapError(
+                (error) =>
+                  new DiscordBotStartupError({
+                    message: 'Failed to connect to Discord Gateway',
+                    cause: error,
+                  }),
+              ),
+              Effect.tap(() => Effect.log('✅ Connected to Discord Gateway')),
             ),
-          )
+          // Release: Disconnect from Gateway
+          (connection) =>
+            connection.disconnect().pipe(
+              Effect.tap(() => Effect.log('🔌 Disconnected from Discord Gateway')),
+              Effect.catchAll(() => Effect.succeed(undefined)),
+            ),
+        )
 
-          currentConnection = connection
-
-          // Process messages until connection closes
-          yield* Stream.runForEach(connection.events, (event) =>
+        // Process events from a connection
+        const processConnection = (connection: { events: Stream.Stream<any> }) =>
+          Stream.runForEach(connection.events, (event) =>
             Effect.gen(function* () {
               if (event._tag === 'DiscordMessageEvent') {
                 const messageEvent = event as DiscordMessageEvent
@@ -65,27 +74,25 @@ export class DiscordBotService extends Effect.Service<DiscordBotService>()('Disc
               }),
             ),
           )
-        })
 
-        // Start the connection loop with automatic reconnection
-        const connectionLoop = yield* Effect.repeat(
-          connectAndProcess.pipe(
-            Effect.catchAll((error) =>
-              Effect.gen(function* () {
-                if (!isShuttingDown) {
-                  yield* Effect.logError('❌ Connection error occurred', error)
-                  // Error already includes exponential backoff from gateway.connect()
-                  // Just add a small delay before the next attempt
-                  yield* Effect.sleep('2 seconds')
-                }
-              }),
-            ),
-          ),
-          {
-            while: () => !isShuttingDown,
-            schedule: Schedule.forever,
-          },
-        ).pipe(Effect.forkDaemon)
+        // Main bot loop with automatic reconnection
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            // Keep reconnecting until shutdown
+            yield* Effect.forever(
+              createConnection.pipe(
+                Effect.flatMap(processConnection),
+                Effect.catchAll((error) =>
+                  Effect.gen(function* () {
+                    yield* Effect.logError('❌ Connection error occurred', error)
+                    // Gateway already has exponential backoff, add small delay
+                    yield* Effect.sleep('2 seconds')
+                  }),
+                ),
+              ),
+            )
+          }),
+        ).pipe(Effect.forkIn(scope), Effect.interruptible)
 
         yield* Effect.log('🎉 Discord bot started successfully')
 
@@ -94,11 +101,7 @@ export class DiscordBotService extends Effect.Service<DiscordBotService>()('Disc
           shutdown: () =>
             Effect.gen(function* () {
               yield* Effect.log('🛑 Shutting down Discord bot...')
-              isShuttingDown = true
-              yield* Fiber.interrupt(connectionLoop)
-              if (currentConnection) {
-                yield* currentConnection.disconnect()
-              }
+              yield* Scope.close(scope, Exit.void)
               yield* Effect.log('✅ Discord bot shutdown complete')
             }).pipe(Effect.withSpan('bot-shutdown')),
         }
