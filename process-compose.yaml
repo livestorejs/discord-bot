@@ -21,6 +21,9 @@ processes:
     # TODO: Remove tee workaround once https://github.com/F1bonacc1/process-compose/issues/361 is fixed
     # The flush_each_line option doesn't work, so we manually tee logs for real-time file output
     command: bash -c "mkdir -p ./logs && exec bun --watch src/main.ts 2>&1 | tee -a ./logs/bot-dev.log"
+    environment:
+      OTEL_SERVICE_NAME: "discord-bot-livestore"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4328"
     availability:
       restart: "always"
       backoff_seconds: 2

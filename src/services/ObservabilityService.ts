@@ -8,12 +8,8 @@ import { Config, Effect, Layer } from 'effect'
  */
 export const ObservabilityLive = Layer.unwrapEffect(
   Effect.gen(function* () {
-    const baseUrl = yield* Config.string('OTEL_EXPORTER_OTLP_ENDPOINT').pipe(
-      Config.withDefault('http://localhost:4328'),
-    )
-    const serviceName = yield* Config.string('OTEL_SERVICE_NAME').pipe(
-      Config.withDefault('discord-bot-livestore'),
-    )
+    const baseUrl = yield* Config.string('OTEL_EXPORTER_OTLP_ENDPOINT')
+    const serviceName = yield* Config.string('OTEL_SERVICE_NAME')
     
     return Otlp.layer({
       baseUrl,
